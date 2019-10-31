@@ -52,6 +52,7 @@ Examples:
 		}
 		rbytes atomic2.Int64
 	}
+	// 解析 Source 链接
 	master.Path = flags.Source
 	if len(master.Path) == 0 {
 		log.Panicf("invalid master address")
@@ -61,6 +62,7 @@ Examples:
 		log.Panicf("invalid master address")
 	}
 
+	// 解析 target 链接
 	var target struct {
 		Path       string
 		Addr, Auth string
@@ -75,6 +77,7 @@ Examples:
 	}
 	log.Infof("sync: master = %q, target = %q\n", master.Path, target.Path)
 
+	// 打开临时文件
 	var tmpfile *os.File
 	if flags.TmpFile.Size != 0 {
 		if flags.TmpFile.Path != "" {
@@ -85,6 +88,7 @@ Examples:
 		defer closeFile(tmpfile)
 	}
 
+	// 建立master连接
 	master.Conn = openConn(master.Addr, master.Auth)
 	defer master.Close()
 	master.rd = rBuilder(master.Conn).
@@ -92,6 +96,7 @@ Examples:
 	master.wt = wBuilder(master.Conn).
 		Buffer2(WriterBufferSize).Writer.(*bufio2.Writer)
 
+	// 发送PSYNC命令开始主从同步，获取rdb文件
 	var runid, offset, rdbSizeChan = redisSendPsyncFullsync(master.rd, master.wt)
 	var rdbSize = func() int64 {
 		for {
@@ -183,6 +188,7 @@ Examples:
 
 	var entryChan = newRDBLoader(io.LimitReader(reader, rdbSize), 32)
 
+	// 这里是先解析rdb文件
 	var jobs = NewParallelJob(flags.Parallel, func() {
 		doRestoreDBEntry(entryChan, target.Addr, target.Auth,
 			func(e *rdb.DBEntry) bool {
@@ -194,6 +200,7 @@ Examples:
 				return true
 			})
 	}).Then(func() {
+		// 前面解析完rdb文件后，重放aof文件命令
 		doRestoreAoflog(reader, target.Addr, target.Auth,
 			func(db uint64, cmd string) bool {
 				if !acceptDB(db) && cmd != "PING" {

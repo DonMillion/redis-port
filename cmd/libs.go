@@ -96,6 +96,7 @@ func redisSendPsyncFullsync(r *bufio2.Reader, w *bufio2.Writer) (string, int64, 
 		log.PanicErrorf(err, "psync response = %q", reply)
 	}
 	runid, offset, rdbSize := split[1], n, make(chan int64)
+	// 开启一个 goroutin 异步读取数据
 	go func() {
 		var rsp string
 		for {
@@ -463,10 +464,12 @@ func redigoGetResponse(c redigo.Conn) {
 	}
 }
 
+// 生成恢复命令
 func genRestoreCommands(e *rdb.DBEntry, db uint64, on func(cmd string, args ...interface{})) {
 	if db != e.DB {
 		on("SELECT", e.DB)
 	}
+	// 这里是一个key，或许可以从这里入手
 	var key = e.Key.BytesUnsafe()
 	on("DEL", key)
 
@@ -590,6 +593,7 @@ func doRestoreDBEntry(entryChan <-chan *rdb.DBEntry, addr, auth string, on func(
 	}).RunAndWait()
 }
 
+// 这里是重放aof命令
 func doRestoreAoflog(reader *bufio2.Reader, addr, auth string, on func(db uint64, cmd string) bool) {
 	var ticker = time.NewTicker(time.Millisecond * 100)
 	defer ticker.Stop()
