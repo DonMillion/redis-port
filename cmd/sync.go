@@ -20,13 +20,14 @@ import (
 func main() {
 	const usage = `
 Usage:
-	redis-sync [--ncpu=N] (--master=MASTER|MASTER) --target=TARGET [--db=DB] [--tmpfile-size=SIZE [--tmpfile=FILE]]
+	redis-sync [--ncpu=N] (--master=MASTER|MASTER) --target=TARGET [--targetprefix=TP] [--db=DB] [--tmpfile-size=SIZE [--tmpfile=FILE]]
 	redis-sync  --version
 
 Options:
 	-n N, --ncpu=N                    Set runtime.GOMAXPROCS to N.
 	-m MASTER, --master=MASTER        The master redis instance ([auth@]host:port).
 	-t TARGET, --target=TARGET        The target redis instance ([auth@]host:port).
+	--targetprefix=TP                 Add prefix in target redis key.
 	--db=DB                           Accept db = DB, default is *.
 	--tmpfile=FILE                    Use FILE to as socket buffer.
 	--tmpfile-size=SIZE               Set FILE size. If no --tmpfile is provided, a temporary file under current folder will be created.
@@ -39,6 +40,8 @@ Examples:
 	$ redis-sync    127.0.0.1:6379 -t passwd@127.0.0.1:6380 --db=0 --tmpfile-size=10gb --tmpfile ~/sockfile.tmp
 `
 	var flags = parseFlags(usage)
+
+	log.Debugf("parseFlags result:%+v", flags);
 
 	var master struct {
 		Path       string
@@ -193,7 +196,7 @@ Examples:
 
 	// 这里是先解析rdb文件
 	var jobs = NewParallelJob(flags.Parallel, func() {
-		doRestoreDBEntry(entryChan, target.Addr, target.Auth,
+		doRestoreDBEntry(entryChan, flags.TargetPrefix, target.Addr, target.Auth,
 			func(e *rdb.DBEntry) bool {
 				if !acceptDB(e.DB) {
 					master.rdb.skip.Incr()
@@ -218,6 +221,7 @@ Examples:
 
 	log.Infof("sync: (r/f,s/f,s) = (read,rdb.forward,rdb.skip/rdb.forward,rdb.skip)")
 
+	// 下面这里就是定时美妙打印进度信息。
 	NewJob(func() {
 		var last, stats struct {
 			rdb, aof struct {

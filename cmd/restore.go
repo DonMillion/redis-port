@@ -95,7 +95,7 @@ Examples:
 		}
 		var entryChan = newRDBLoader(input.rd, 32)
 		NewParallelJob(flags.Parallel, func() {
-			doRestoreDBEntry(entryChan, target.Addr, target.Auth,
+			doRestoreDBEntry(entryChan, "", target.Addr, target.Auth,
 				func(e *rdb.DBEntry) bool {
 					if e.Expire != rdb.NoExpire {
 						e.Expire += flags.ExpireOffset

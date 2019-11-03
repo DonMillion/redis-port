@@ -21,7 +21,8 @@ const (
 
 type Flags struct {
 	Source, Target string
-
+	// 用于添加到target key的前缀
+	TargetPrefix string
 	Parallel int
 
 	AofPath string
@@ -83,6 +84,12 @@ func parseFlagsFromArgs(usage string, args []string) *Flags {
 	for _, key := range []string{"--output", "--target"} {
 		if s, ok := d[key].(string); ok && s != "" {
 			flags.Target = s
+		}
+	}
+	// 解析 targetprefix 前缀
+	for _, key := range []string{"--targetprefix"} {
+		if s, ok := d[key].(string); ok && s != "" {
+			flags.TargetPrefix = s
 		}
 	}
 

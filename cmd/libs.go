@@ -468,17 +468,22 @@ func redigoGetResponse(c redigo.Conn) {
 }
 
 // 生成恢复命令
-func genRestoreCommands(e *rdb.DBEntry, db uint64, on func(cmd string, args ...interface{})) {
+func genRestoreCommands(e *rdb.DBEntry, db uint64, targetPrefix []byte, on func(cmd string, args ...interface{})) {
 	if db != e.DB {
 		on("SELECT", e.DB)
 	}
-	// 这里是一个key，或许可以从这里入手
+	// 这里是一个key，可以从这里入手,添加前缀
 	var key = e.Key.BytesUnsafe()
+	if len(key) > 0 && len(targetPrefix) > 0{
+		key = append(targetPrefix, key...)
+	}
+	// 如果原来已经存在这个key，就先把存在的key删掉。
 	on("DEL", key)
 
 	const MaxArgsNum = 511
 	var args []interface{}
 	var pushArgs = func(cmd string, added ...interface{}) {
+		// 这里在一开始就把key压入参数栈里面了。
 		if len(args) == 0 {
 			args = append(args, key)
 		}
@@ -546,7 +551,7 @@ func genRestoreCommands(e *rdb.DBEntry, db uint64, on func(cmd string, args ...i
 	}
 }
 
-func doRestoreDBEntry(entryChan <-chan *rdb.DBEntry, addr, auth string, on func(e *rdb.DBEntry) bool) {
+func doRestoreDBEntry(entryChan <-chan *rdb.DBEntry, targetPrefix, addr, auth string, on func(e *rdb.DBEntry) bool) {
 	var ticker = time.NewTicker(time.Millisecond * 250)
 	defer ticker.Stop()
 
@@ -567,7 +572,7 @@ func doRestoreDBEntry(entryChan <-chan *rdb.DBEntry, addr, auth string, on func(
 		var db uint64
 		for e := range entryChan {
 			if on(e) {
-				genRestoreCommands(e, db, func(cmd string, args ...interface{}) {
+				genRestoreCommands(e, db, []byte(targetPrefix), func(cmd string, args ...interface{}) {
 					redigoSendCommand(c, cmd, args...)
 					redigoFlushConnIf(c, func() bool {
 						switch {
