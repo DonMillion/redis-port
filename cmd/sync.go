@@ -111,6 +111,7 @@ Examples:
 			}
 		}
 	}()
+	// 完成获取rdb文件，打印结果
 	log.Infof("sync: runid = %q, offset = %d", runid, offset)
 	log.Infof("sync: rdb file = %d (%s)\n", rdbSize,
 		bytesize.Int64(rdbSize).HumanString())
@@ -118,6 +119,7 @@ Examples:
 	var dumpoff atomic2.Int64
 	var reploff = atomic2.Int64(offset)
 
+	// 获取完rdb文件，开始通过pipe mode 读取aof文件
 	var pipeReader = func() pipe.Reader {
 		var mp = pipe.NewPipe()
 		go func() {
@@ -153,6 +155,7 @@ Examples:
 
 				log.Infof("connection lost %q", master.Addr)
 
+				// 重连
 			try_again:
 				time.Sleep(time.Second)
 				c, err := net.Dial("tcp", master.Addr)
@@ -202,6 +205,7 @@ Examples:
 	}).Then(func() {
 		// 前面解析完rdb文件后，重放aof文件命令
 		doRestoreAoflog(reader, target.Addr, target.Auth,
+			// 下面这个函数是过滤器，过滤掉 PING 命令
 			func(db uint64, cmd string) bool {
 				if !acceptDB(db) && cmd != "PING" {
 					master.aof.skip.Incr()
