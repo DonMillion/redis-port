@@ -84,6 +84,7 @@ func authenticate(c net.Conn, auth string) net.Conn {
 func redisSendPsyncFullsync(r *bufio2.Reader, w *bufio2.Writer) (string, int64, <-chan int64) {
 	var enc = redis.NewEncoderBuffer(w)
 	var dec = redis.NewDecoderBuffer(r)
+	// 向master 发送命令 "PSYNC ? -1" 表示全量同步数据
 	var cmd = redisNewCommand("PSYNC", "?", -1)
 	redisSendCommand(enc, cmd, true)
 	reply := redisRespAsString(redisGetResponse(dec))
@@ -108,7 +109,9 @@ func redisSendPsyncFullsync(r *bufio2.Reader, w *bufio2.Writer) (string, int64, 
 				rdbSize <- 0
 				continue
 			}
+			// 把读取的数据串起来
 			rsp += string(b)
+			// 结尾是 "\r\n" 表明是rdb数据结尾
 			if strings.HasSuffix(rsp, "\r\n") {
 				break
 			}
