@@ -625,6 +625,7 @@ func doRestoreAoflog(reader *bufio2.Reader, addr, auth string, on func(db uint64
 		if r.Type != redis.TypeArray || len(r.Array) == 0 {
 			log.Panicf("invalid command %+v", r)
 		}
+		// 这里可以得知，r.Array[0].Value就是命令名，可以在这里过滤
 		var cmd = strings.ToUpper(string(r.Array[0].Value))
 		if cmd == "SELECT" {
 			if len(r.Array) != 2 {
