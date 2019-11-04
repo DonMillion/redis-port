@@ -207,7 +207,7 @@ Examples:
 			})
 	}).Then(func() {
 		// 前面解析完rdb文件后，重放aof文件命令
-		doRestoreAoflog(reader, target.Addr, target.Auth,
+		doRestoreAoflog(reader, flags.TargetPrefix, target.Addr, target.Auth,
 			// 下面这个函数是过滤器，过滤掉 PING 命令
 			func(db uint64, cmd string) bool {
 				if !acceptDB(db) && cmd != "PING" {

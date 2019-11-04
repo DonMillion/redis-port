@@ -112,7 +112,7 @@ Examples:
 		if aoflog.Path == "" {
 			return
 		}
-		doRestoreAoflog(aoflog.rd, target.Addr, target.Auth,
+		doRestoreAoflog(aoflog.rd, "", target.Addr, target.Auth,
 			func(db uint64, cmd string) bool {
 				if !acceptDB(db) && cmd != "PING" {
 					aoflog.skip.Incr()

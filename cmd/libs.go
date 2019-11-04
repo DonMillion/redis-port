@@ -566,13 +566,14 @@ func doRestoreDBEntry(entryChan <-chan *rdb.DBEntry, targetPrefix, addr, auth st
 	defer c.Close()
 
 	var replyChan = make(chan *rdb.DBEntry, 128)
+	targetPrefixByte := []byte(targetPrefix)
 
 	NewJob(func() {
 		defer close(replyChan)
 		var db uint64
 		for e := range entryChan {
 			if on(e) {
-				genRestoreCommands(e, db, []byte(targetPrefix), func(cmd string, args ...interface{}) {
+				genRestoreCommands(e, db, targetPrefixByte, func(cmd string, args ...interface{}) {
 					redigoSendCommand(c, cmd, args...)
 					redigoFlushConnIf(c, func() bool {
 						switch {
@@ -602,7 +603,7 @@ func doRestoreDBEntry(entryChan <-chan *rdb.DBEntry, targetPrefix, addr, auth st
 }
 
 // 这里是重放aof命令
-func doRestoreAoflog(reader *bufio2.Reader, addr, auth string, on func(db uint64, cmd string) bool) {
+func doRestoreAoflog(reader *bufio2.Reader, targetPrefix, addr, auth string, on func(db uint64, cmd string) bool) {
 	var ticker = time.NewTicker(time.Millisecond * 100)
 	defer ticker.Stop()
 
@@ -620,6 +621,7 @@ func doRestoreAoflog(reader *bufio2.Reader, addr, auth string, on func(db uint64
 
 	var encoder = redis.NewEncoder(c)
 	var decoder = redis.NewDecoderBuffer(reader)
+	targetPrefixByte := []byte(targetPrefix)
 	var db uint64
 	for {
 		r, err := decoder.Decode()
@@ -645,6 +647,52 @@ func doRestoreAoflog(reader *bufio2.Reader, addr, auth string, on func(db uint64
 		if !on(db, cmd) {
 			continue
 		}
+		modifyKey(cmd, r, targetPrefixByte)
 		redisSendCommand(encoder, r, tick.Swap(0) != 0)
+	}
+}
+
+// 参数里会有key的命令
+var modifyKeyCommands = map[string][]int32 {
+	"GET" : []int32{1},
+	"SET" : []int32{1},
+    "SETNX" : []int32{1},
+    "SETEX" : []int32{1},
+    "EXPIRE" : []int32{1},
+    "DEL" : []int32{1},
+    "DELETE" : []int32{1},
+    "LPUSH" : []int32{1},
+    "LPOP" : []int32{1},
+    "RPUSH" : []int32{1},
+    "RPOP" : []int32{1},
+    "LLEN" : []int32{1},
+    "LRANGE" : []int32{1},
+    "SADD" : []int32{1},
+    "SISMEMBER" : []int32{1},
+    "SMEMBERS" : []int32{1},
+    "MGET" : []int32{1},
+    "INCR" : []int32{1},
+    "HGETALL" : []int32{1},
+}
+
+func modifyKey(cmd string, r *redis.Resp, targetPrefixByte []byte) {
+	log.Debugf("Aof command receive, cmd=%s, r=%+v r.Type=%+v r.Value=%+v", cmd, r, r.Type, r.Value)
+	for i, subRsp := range r.Array {
+		log.Debugf("range r.Array i=%d subRsp=%+v value=%s", i, subRsp, string(subRsp.Value))
+	}
+
+	if len(targetPrefixByte) == 0 {
+		return
+	}
+
+	// 如果是有key可以修改的话,就把里面的key全都修改了
+	if idx, ok := modifyKeyCommands[cmd]; ok {
+		for _, i := range idx {
+			r.Array[i].Value = append(targetPrefixByte, r.Array[i].Value...)
+		}
+	}
+
+	for i, subRsp := range r.Array {
+		log.Debugf("After modifyKey range r.Array i=%d subRsp=%+v value=%s", i, subRsp, string(subRsp.Value))
 	}
 }
