@@ -652,9 +652,9 @@ func doRestoreAoflog(reader *bufio2.Reader, targetPrefix, addr, auth string, on 
 	}
 }
 
-// 参数里会有key的命令
+// 参数里会有key的命令，实际上，只有会修改数据内容的命令，master才会下发下来。
+// 像get, llen hgetall 这种只查询数据命令，都不会下发。
 var modifyKeyCommands = map[string][]int32 {
-	"GET" : []int32{1},
 	"SET" : []int32{1},
     "SETNX" : []int32{1},
     "SETEX" : []int32{1},
@@ -665,14 +665,8 @@ var modifyKeyCommands = map[string][]int32 {
     "LPOP" : []int32{1},
     "RPUSH" : []int32{1},
     "RPOP" : []int32{1},
-    "LLEN" : []int32{1},
-    "LRANGE" : []int32{1},
     "SADD" : []int32{1},
-    "SISMEMBER" : []int32{1},
-    "SMEMBERS" : []int32{1},
-    "MGET" : []int32{1},
     "INCR" : []int32{1},
-    "HGETALL" : []int32{1},
 }
 
 func modifyKey(cmd string, r *redis.Resp, targetPrefixByte []byte) {
